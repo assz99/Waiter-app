@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+
 import { ActivityIndicator } from 'react-native'
 import { Button } from '../components/Button'
 import { Cart } from '../components/Cart'
@@ -9,7 +10,9 @@ import Menu from '../components/Menu'
 import { TableModal } from '../components/TableModal'
 import { Text } from '../components/Text'
 import { CartItem } from '../types/CartItems'
+import { Category } from '../types/Category'
 import { Product } from '../types/product'
+import { api } from '../utils/api'
 import {
   CategoriesContainer,
   CenteredrContainer,
@@ -23,8 +26,30 @@ export default function Main () {
   const [isTableModalVisible, setIsTableModalVisible] = useState(false)
   const [selectedTable, setSelectedTable] = useState('')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+
+  useEffect(() => {
+    Promise.all([api.get('/categories'), api.get('/products')]).then(
+      ([categoriesResponse, productsResponse]) => {
+        setCategories(categoriesResponse.data)
+        setProducts(productsResponse.data)
+        setIsLoading(false)
+      }
+    )
+  }, [])
+
+  async function handleSelectCategory (categoryId: string) {
+    const route = !categoryId
+      ? '/products'
+      : `/categories/${categoryId}/products`
+    setIsLoadingProducts(true)
+    const { data } = await api.get(route)
+    setProducts(data)
+    setIsLoadingProducts(false)
+  }
 
   function handleSaveTable (table: string) {
     setSelectedTable(table)
@@ -100,21 +125,32 @@ export default function Main () {
         {!isLoading && (
           <>
             <CategoriesContainer>
-              <Categories />
+              <Categories
+                categories={categories}
+                onSelectCategory={handleSelectCategory}
+              />
             </CategoriesContainer>
 
-            {products.length > 0 ? (
-              <MenuContainer>
-                <Menu onAddToCart={handleAddToCart} products={products} />
-              </MenuContainer>
-            ) : (
+            {isLoadingProducts ? (
               <CenteredrContainer>
-                <Empty />
-
-                <Text color='#666' style={{ marginTop: 24 }}>
-                  Nenhum produto foi encontrado!
-                </Text>
+                <ActivityIndicator color='#D73035' size='large' />
               </CenteredrContainer>
+            ) : (
+              <>
+                {products.length > 0 ? (
+                  <MenuContainer>
+                    <Menu onAddToCart={handleAddToCart} products={products} />
+                  </MenuContainer>
+                ) : (
+                  <CenteredrContainer>
+                    <Empty />
+
+                    <Text color='#666' style={{ marginTop: 24 }}>
+                      Nenhum produto foi encontrado!
+                    </Text>
+                  </CenteredrContainer>
+                )}
+              </>
             )}
           </>
         )}
@@ -136,6 +172,7 @@ export default function Main () {
               onAdd={handleAddToCart}
               onDecrement={handleDecrementCartItem}
               onConfirmOrder={handleResetOrder}
+              selectedTable={selectedTable}
             />
           )}
         </FooterContainer>
